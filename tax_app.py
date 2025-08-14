@@ -56,7 +56,7 @@ st.markdown(rtl_style, unsafe_allow_html=True)
 # ---- عنوان و "لوگو" ----
 st.markdown("<div class='kimiya-note'>کارگاه کیمیاگری 9</div>", unsafe_allow_html=True)
 st.markdown("<h1 style='text-align:center;'>الزامات مالی</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center;'>محاسبه‌کر انواع الزامات مالی، مالیات‌ها، سود و شاخص‌های ساده کسب‌وکار</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center;'>محاسبه‌گر انواع الزامات مالی، مالیات‌ها، سود و شاخص‌های ساده کسب‌وکار</p>", unsafe_allow_html=True)
 
 # ---- ورودی‌ها ----
 st.header("📥 ورود اطلاعات")
