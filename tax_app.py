@@ -55,11 +55,12 @@ st.markdown(rtl_style, unsafe_allow_html=True)
 
 # ---- عنوان و "لوگو" ----
 st.markdown("<div class='kimiya-note'>کارگاه کیمیاگری 9</div>", unsafe_allow_html=True)
-st.markdown("<h1 style='text-align:center;'>الزامات مالی</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center;'>محاسبه‌گر انواع الزامات مالی، مالیات‌ها، سود و شاخص‌های ساده کسب‌وکار</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>سلام کیمیاگر عزیز</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center;'>این نرم‌افزار محاسبه‌گر انواع الزامات مالی، مالیات‌ها، سود و شاخص‌های ساده کسب‌وکار برای تو فراهم شده.</p>", unsafe_allow_html=True)
 
 # ---- ورودی‌ها ----
 st.header("📥 ورود اطلاعات")
+business_name = st.text_input("🏢 نام کسب‌وکار", value="")  # New input field
 col1, col2, col3 = st.columns([1,1,1])
 with col1:
     num_customers = st.number_input("👥 تعداد مشتریان", min_value=0, value=0, step=1)
@@ -96,6 +97,8 @@ if do_calc:
 
     with results_box:
         st.header("📤 نتایج محاسبه")
+        if business_name.strip():
+            st.markdown(f"**🏷️ نام کسب‌وکار:** {business_name}")
         st.success("✅ محاسبه انجام شد! نتایج زیر را بررسی کنید.")
 
         # متریک‌های کلیدی
@@ -149,7 +152,7 @@ if do_calc:
             "<div class='pay-note'>"
             "🧾 <b>نحوه پرداخت الزامات مالی:</b><br>"
             "مبلغ الزامات مالی را به حساب مسئول بودجه <b>فرنام شهبا</b> به شماره کارت "
-            "<b>۶۲۷۴-۸۸۱۱-۱۳۱۹-۱۶۶۱</b> واریز بفرمایید و رسید واریز به همراه فایل محاسبه‌شده را به آی‌دی تلگرام "
+            "<b>۶۲۷۴۸۸۱۱۱۳۱۹۱۶۶۱</b> واریز بفرمایید و رسید واریز به همراه فایل محاسبه‌شده را به آی‌دی تلگرام "
             "<b>@farnamshahba</b> ارسال کنید."
             "</div>", unsafe_allow_html=True
         )
@@ -191,7 +194,7 @@ if do_calc:
         fig_bar.update_layout(yaxis_title="تومان", xaxis_title="", uniformtext_minsize=12, uniformtext_mode='show')
         st.plotly_chart(fig_bar, use_container_width=True)
 
-    # ---- تولید PDF رسمی ----
+    # ---- تولید PDF  ----
     def shape_rtl(text):
         if not text:
             return text
@@ -239,6 +242,11 @@ if do_calc:
         elements.append(Paragraph(shape_rtl("الزامات مالی"), title_style))
         elements.append(Spacer(1, 10))
 
+        # نمایش نام کسب‌وکار در PDF
+        if business_name.strip():
+            elements.append(Paragraph(shape_rtl(f"نام کسب‌وکار: {business_name}"), normal_style))
+            elements.append(Spacer(1, 8))
+
         # خلاصه ورودی‌ها
         summary = (
             f"تعداد مشتریان: {to_persian_number(num_customers)} | "
@@ -251,19 +259,21 @@ if do_calc:
         # جدول نتایج
         rows = [
             [shape_rtl("عنوان"), shape_rtl("مبلغ/درصد")],
-            [shape_rtl("عوارض فعالیت اقتصادی  (۵٪)"), f"{to_persian_number(income_tax)} تومان"],
-            [shape_rtl("کارمزد تراکنش (۵۰۰۰ تومان × مشتری)"), f"{to_persian_number(fee)} تومان"],
-            [shape_rtl("مالیات بر سود (۲۵٪)"), f"{to_persian_number(corporate_tax)} تومان"],
-            [shape_rtl("مالیات بر ارزش افزوده (۱۰٪)"), f"{to_persian_number(vat)} تومان"],
-            [shape_rtl("سود ناخالص"), f"{to_persian_number(gross_profit)} تومان"],
+            [shape_rtl("عوارض فعالیت اقتصادی  (۵٪)"), f"{to_persian_number(income_tax)}"],
+            [shape_rtl("کارمزد تراکنش (۵۰۰۰ تومان × مشتری)"), f"{to_persian_number(fee)}"],
+            [shape_rtl("مالیات بر سود (۲۵٪)"), f"{to_persian_number(corporate_tax)}"],
+            [shape_rtl("مالیات بر ارزش افزوده (۱۰٪)"), f"{to_persian_number(vat)}"],
+            [shape_rtl("سود ناخالص"), f"{to_persian_number(gross_profit)}"],
             [shape_rtl("حاشیه سود ناخالص (%)"), f"{to_persian_number(round(gross_margin,1), decimals=1)}٪"],
-            [shape_rtl("سود خالص"), f"{to_persian_number(net_profit)} تومان"],
+            [shape_rtl("سود خالص"), f"{to_persian_number(net_profit)}"],
             [shape_rtl("حاشیه سود خالص (%)"), f"{to_persian_number(round(net_margin,1), decimals=1)}٪"],
-            [shape_rtl("کل پرداختی‌ها"), f"{to_persian_number(total_obligations)} تومان"],
+            [shape_rtl("کل پرداختی‌ها"), f"{to_persian_number(total_obligations)}"],
             [shape_rtl("سهم پرداختی‌ها از درآمد (%)"), f"{to_persian_number(round(tax_to_income,1), decimals=1)}٪"],
             [shape_rtl("نسبت هزینه به درآمد (%)"), f"{to_persian_number(round(cost_to_income,1), decimals=1)}٪"],
-            [shape_rtl("سود به ازای هر مشتری"), f"{to_persian_number(profit_per_customer)} تومان"],
+            [shape_rtl("سود به ازای هر مشتری"), f"{to_persian_number(profit_per_customer)}"],
         ]
+
+        st.subheader(f"📑 جدول خلاصه – {business_name}" if business_name else "📑 جدول خلاصه")
 
         from reportlab.platypus import Table
         table = Table(rows, colWidths=[8*cm, 6*cm])
@@ -300,7 +310,7 @@ if do_calc:
     pdf_placeholder.download_button(
         label="📄 دانلود گزارش PDF",
         data=pdf_bytes,
-        file_name="financial_requirements_report.pdf",
+        file_name=f"financial_requirements_report_{business_name}.pdf",
         mime="application/pdf"
     )
 
