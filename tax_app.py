@@ -54,9 +54,9 @@ h1, h2, h3 { font-weight: 700; }
 st.markdown(rtl_style, unsafe_allow_html=True)
 
 # ---- عنوان و "لوگو" ----
-st.markdown("<div class='kimiya-note'>کارگاه کیمیاگری 9</div>", unsafe_allow_html=True)
+st.markdown("<div class='kimiya-note'>کارگاه کیمیاگری ۹</div>", unsafe_allow_html=True)
 st.markdown("<h1 style='text-align:center;'>سلام کیمیاگر عزیز</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center;'>این نرم‌افزار محاسبه‌گر انواع الزامات مالی، مالیات‌ها، سود و شاخص‌های ساده کسب‌وکار برای تو فراهم شده.</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center;'>این نرم‌افزار محاسبه‌گر برای تسهیل فعالیت اقتصادی تو تهیه شده است.</p>", unsafe_allow_html=True)
 
 # ---- ورودی‌ها ----
 st.header("📥 ورود اطلاعات")
@@ -235,11 +235,11 @@ if do_calc:
         elements = []
 
         # "لوگو" (یادداشت فانتزی)
-        elements.append(Paragraph(f"<b>{shape_rtl('کارگاه کیمیاگری 9')}</b>", subtitle_style))
+        elements.append(Paragraph(f"<b>{shape_rtl('کارگاه کیمیاگری ۹')}</b>", subtitle_style))
         elements.append(Spacer(1, 6))
 
         # تیتر
-        elements.append(Paragraph(shape_rtl("الزامات مالی"), title_style))
+        elements.append(Paragraph(shape_rtl("گزارش مالی"), title_style))
         elements.append(Spacer(1, 10))
 
         # نمایش نام کسب‌وکار در PDF
@@ -298,7 +298,7 @@ if do_calc:
 
         # یادداشت پایانی
         elements.append(Spacer(1, 8))
-        note = "این گزارش توسط مسئول بودجه، جهت اطلاع مسئولین کارگاه کیمیاگری 9 تهیه شده است."
+        note = "این گزارش توسط مسئول بودجه، جهت استفاده کلیه مسئولین شهر کیمیاگری ۹ تهیه شده است."
         elements.append(Paragraph(shape_rtl(note), normal_style))
 
         doc.build(elements)
