@@ -3,3 +3,5 @@ plotly
 reportlab
 arabic-reshaper
 python-bidi
+jdatetime
+kaleido
