@@ -3,8 +3,9 @@ import io
 import os
 import streamlit as st
 import plotly.express as px
+import jdatetime
 
-# ماژول‌های اختیاری برای رندر فارسی در PDF
+# Optional libs for RTL in PDF
 try:
     import arabic_reshaper
     from bidi.algorithm import get_display
@@ -12,12 +13,15 @@ try:
 except Exception:
     HAS_RTL_LIBS = False
 
-# ---- تبدیل عدد به رقم فارسی + جداکننده هزار ----
+# ---- Persian digits + thousand separator ----
 PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹"
+EN_DIGITS = "0123456789"
+FA_TO_EN = str.maketrans(PERSIAN_DIGITS, EN_DIGITS)
+
 def to_persian_number(num, decimals=0):
     """
-    num: عدد
-    decimals: تعداد اعشار برای نمایش (پیش‌فرض 0 برای تومان)
+    num: number
+    decimals: decimal digits for display (default 0 for Tomans)
     """
     if decimals == 0:
         s = f"{round(num):,}"
@@ -31,10 +35,21 @@ def to_persian_number(num, decimals=0):
             out.append(ch)
     return "".join(out)
 
-# ---- تنظیمات صفحه ----
+def fa_to_en_num_str(s: str) -> str:
+    # convert Persian digits to English, keep digits only
+    s = (s or "").translate(FA_TO_EN)
+    # keep digits only
+    digits = "".join(ch for ch in s if ch.isdigit())
+    return digits or "0"
+
+def format_with_commas(s: str) -> str:
+    n = int(fa_to_en_num_str(s))
+    return f"{n:,}"
+
+# ---- Streamlit page ----
 st.set_page_config(page_title="الزامات مالی - ماشین‌حساب", page_icon="💰", layout="centered")
 
-# ---- استایل RTL ----
+# ---- RTL styles (kept) ----
 rtl_style = """
 <style>
 * { direction: rtl; text-align: right; font-family: Vazirmatn, Tahoma, "IRANSans", sans-serif; }
@@ -53,40 +68,54 @@ h1, h2, h3 { font-weight: 700; }
 """
 st.markdown(rtl_style, unsafe_allow_html=True)
 
-# ---- عنوان و "لوگو" ----
+# ---- Header & "logo" (kept) ----
 st.markdown("<div class='kimiya-note'>کارگاه کیمیاگری ۹</div>", unsafe_allow_html=True)
-st.markdown("<h1 style='text-align:center;'>سلام کیمیاگر عزیز</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center;'>این نرم‌افزار محاسبه‌گر برای تسهیل فعالیت اقتصادی تو تهیه شده است.</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>سلام کیمیاگر</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center;'>این نرم‌افزار برای تسهیل فعالیت اقتصادی تو تهیه شده است.</p>", unsafe_allow_html=True)
 
-# ---- ورودی‌ها ----
+# ---- Inputs (live thousand separators) ----
 st.header("📥 ورود اطلاعات")
-business_name = st.text_input("🏢 نام کسب‌وکار", value="")  # New input field
+
+business_name = st.text_input("🏢 نام کسب‌وکار", value="")
+
+def formatted_number_input(label: str, key: str) -> int:
+    # initialize once
+    if key not in st.session_state:
+        st.session_state[key] = "0"
+
+    def _format_callback():
+        st.session_state[key] = format_with_commas(st.session_state[key])
+
+    val_str = st.text_input(label, value=st.session_state[key], key=key, on_change=_format_callback)
+    return int(fa_to_en_num_str(val_str))
+
 col1, col2, col3 = st.columns([1,1,1])
 with col1:
-    num_customers = st.number_input("👥 تعداد مشتریان", min_value=0, value=0, step=1)
+    num_customers = formatted_number_input("👥 تعداد مشتریان", key="num_customers_input")
 with col2:
-    total_income = st.number_input("💵 کل درآمد (تومان)", min_value=0.0, value=0.0, step=100000.0, format="%.0f")
+    total_income = formatted_number_input("💵 کل درآمد (تومان)", key="total_income_input")
 with col3:
-    total_costs = st.number_input("💰 کل هزینه‌ها (تومان)", min_value=0.0, value=0.0, step=100000.0, format="%.0f")
+    total_costs = formatted_number_input("💰 کل هزینه‌ها (تومان)", key="total_costs_input")
 
 calc_col, pdf_col = st.columns([1,1])
 do_calc = calc_col.button("📊 محاسبه کن")
-pdf_placeholder = pdf_col.empty()  # دکمه PDF بعد از محاسبه نمایان می‌شود
+pdf_placeholder = pdf_col.empty()  # show PDF button after calculation
 
 results_box = st.container()
 charts_box = st.container()
 footer_box = st.container()
 
 if do_calc:
-    # ---- قوانین مالیاتی (همه بر حسب تومان) ----
+    # ---- Tax rules (Tomans) ----
     income_tax = 0.05 * total_income                     # ۵٪ از درآمد
     fee = 5000 * num_customers                           # ۵۰۰۰ تومان به ازای هر مشتری
     corporate_tax_base = total_income - (total_costs + income_tax + fee)
     corporate_tax = 0.25 * corporate_tax_base if corporate_tax_base > 0 else 0
-    vat = 0.10 * total_income                             # ۱۰٪ از درآمد
+    vat = 0.10 * total_income                            # ۱۰٪ از درآمد
+    total_remaining = total_income - income_tax - fee - corporate_tax
     net_profit = total_income - (total_costs + income_tax + fee + corporate_tax)
 
-    # ---- شاخص‌های کسب‌وکار ----
+    # ---- KPIs ----
     gross_profit = total_income - total_costs
     gross_margin = (gross_profit / total_income * 100) if total_income > 0 else 0
     net_margin = (net_profit / total_income * 100) if total_income > 0 else 0
@@ -101,106 +130,77 @@ if do_calc:
             st.markdown(f"**🏷️ نام کسب‌وکار:** {business_name}")
         st.success("✅ محاسبه انجام شد! نتایج زیر را بررسی کنید.")
 
-        # متریک‌های کلیدی
-        m1, m2, m3, m4 = st.columns(4)
+        # Metrics
+        m1, m2, m3, m4, m5 = st.columns(5)
         m1.metric("سود خالص (تومان)", f"{to_persian_number(net_profit)}")
-        m2.metric("حاشیه سود خالص", f"{to_persian_number(round(net_margin, 1), decimals=1)}٪")
-        m3.metric("کل پرداختی‌ها (تومان)", f"{to_persian_number(total_obligations)}")
-        m4.metric("سهم پرداختی‌ها از درآمد", f"{to_persian_number(round(tax_to_income, 1), decimals=1)}٪")
+        m2.metric("حاشیه سود خالص", f"{to_persian_number(round(net_margin, 0), decimals=0)}٪")
+        m3.metric("کل دریافت با ارزش افزوده (تومان)", f"{to_persian_number(round(total_income+vat, 0))}")
+        m4.metric("کل پرداخت به صندوق شهر (تومان)", f"{to_persian_number(total_obligations)}")
+        m5.metric("مانده برای کسب‌و‌کار (تومان)", f"{to_persian_number(round(total_remaining))}")
 
         st.subheader("جزئیات محاسبات")
-        st.write(f"**عوارض فعالیت اقتصادی (۵٪ از درآمد):** {to_persian_number(income_tax)} تومان")
-        st.write(f"**کارمزد تراکنش (۵۰۰۰ تومان × تعداد مشتریان):** {to_persian_number(fee)} تومان")
-        st.write(f"**مالیات بر سود (۲۵٪ از سود پس از هزینه و مالیات/کارمزد تراکنش):** {to_persian_number(corporate_tax)} تومان")
-        st.write(f"**مالیات بر ارزش افزوده (۱۰٪ از درآمد):** {to_persian_number(vat)} تومان")
-        st.write(f"**سود ناخالص:** {to_persian_number(gross_profit)} تومان")
-        st.write(f"**حاشیه سود ناخالص:** {to_persian_number(round(gross_margin, 1), decimals=1)}٪")
+        st.write(f"مجموع درآمد فروش کالا یا خدمات: {to_persian_number(total_income)} تومان")
+        st.write(f"مالیات بر ارزش افزوده دریافتی از مشتری: {to_persian_number(vat)} تومان")
+        st.write(f"**کل دریافت با ارزش افزوده:** {to_persian_number(total_income+vat)} تومان")
+        st.write("")
+        st.write(f"عوارض فعالیت اقتصادی (۵٪ از درآمد): {to_persian_number(income_tax)} تومان")
+        st.write(f"کارمزد تراکنش (۵۰۰۰ تومان × تعداد مشتریان): {to_persian_number(fee)} تومان")
+        st.write(f"مالیات بر سود (۲۵٪ از سود پس از هزینه و مالیات/کارمزد تراکنش): {to_persian_number(corporate_tax)} تومان")
+        st.write(f"مالیات بر ارزش افزوده (۱۰٪ از درآمد): {to_persian_number(vat)} تومان")
+        st.write(f"**مانده برای کسب‌و‌کار:** {to_persian_number(total_remaining)} تومان")
+        st.write("")
+        st.write(f"**مجموع هزینه تولید کالا یا خدمات:** {to_persian_number(total_costs)} تومان")
+        st.write("")
         st.write(f"**سود خالص:** {to_persian_number(net_profit)} تومان")
-        st.write(f"**نسبت هزینه به درآمد:** {to_persian_number(round(cost_to_income, 1), decimals=1)}٪")
+        st.write(f"**حاشیه سود:** {to_persian_number(round(net_margin, 0), decimals=0)}٪")
+        st.write("")
+        st.write(f"**نسبت هزینه به درآمد:** {to_persian_number(round(cost_to_income, 0), decimals=0)}٪")
+        st.write(f"**نسبت پرداخت به صندوق شهر به درآمد:** {to_persian_number(round(tax_to_income, 0), decimals=0)}٪")
         st.write(f"**سود به ازای هر مشتری:** {to_persian_number(profit_per_customer)} تومان")
-
-        st.subheader("📑 جدول خلاصه")
-        st.table({
-            "عنوان": [
-                "تعداد مشتریان", "کل درآمد (تومان)", "کل هزینه‌ها (تومان)",
-                "عوارض فعالیت اقتصادی", "کارمزد تراکنش", "مالیات بر سود", "مالیات بر ارزش افزوده",
-                "سود ناخالص", "حاشیه سود ناخالص (%)",
-                "سود خالص", "حاشیه سود خالص (%)",
-                "کل پرداختی‌ها", "سهم پرداختی‌ها از درآمد (%)",
-                "نسبت هزینه به درآمد (%)", "سود به ازای هر مشتری (تومان)"
-            ],
-            "مبلغ/درصد": [
-                to_persian_number(num_customers),
-                to_persian_number(total_income),
-                to_persian_number(total_costs),
-                to_persian_number(income_tax),
-                to_persian_number(fee),
-                to_persian_number(corporate_tax),
-                to_persian_number(vat),
-                to_persian_number(gross_profit),
-                to_persian_number(round(gross_margin, 1), decimals=1),
-                to_persian_number(net_profit),
-                to_persian_number(round(net_margin, 1), decimals=1),
-                to_persian_number(total_obligations),
-                to_persian_number(round(tax_to_income, 1), decimals=1),
-                to_persian_number(round(cost_to_income, 1), decimals=1),
-                to_persian_number(profit_per_customer),
-            ]
-        })
 
         st.markdown(
             "<div class='pay-note'>"
             "🧾 <b>نحوه پرداخت الزامات مالی:</b><br>"
-            "مبلغ الزامات مالی را به حساب مسئول بودجه <b>فرنام شهبا</b> به شماره کارت "
-            "<b>۶۲۷۴۸۸۱۱۱۳۱۹۱۶۶۱</b> واریز بفرمایید و رسید واریز به همراه فایل محاسبه‌شده را به آی‌دی تلگرام "
-            "<b>@farnamshahba</b> ارسال کنید."
+            f"(مبلغ {to_persian_number(total_obligations)} را به حساب مسئول بودجه <b>فرنام شهبا</b> به شماره کارت "
+            "<b>۶۲۷۴۸۸۱۱۱۳۱۹۱۶۶۱</b> واریز بفرمایید و رسید واریز به همراه اظهارنامه مالی را به آی‌دی تلگرام "
+            "<b>farnamshahba@</b> ارسال کنید."
             "</div>", unsafe_allow_html=True
         )
 
-    # ---- نمودارها ----
+    # ---- Chart (kept colors) ----
     with charts_box:
-        st.subheader("📊 نمودار توزیع پرداخت‌ها")
+        st.subheader("📊 نمودار توزیع درآمد")
         pie_data = {
-            "نوع": ["عوارض فعالیت اقتصادی", "کارمزد تراکنش", "مالیات بر سود", "مالیات بر ارزش افزوده"],
-            "مقدار": [income_tax, fee, corporate_tax, vat]
+            "نوع": ["عوارض فعالیت اقتصادی", "کارمزد تراکنش", "مالیات بر سود", "هزینه کسب و کار", "سود خالص"],
+            "مقدار": [income_tax, fee, corporate_tax, total_costs, net_profit]
         }
-        colors = ["#FFB74D", "#4DB6AC", "#E57373", "#64B5F6"]  # رنگ‌های ثابت
+        colors_palette = ["#D89128","#F89602", "#FFB74D", "#E57373", "#4DB6AC"]  # kept palette
         fig_pie = px.pie(
             pie_data, names="نوع", values="مقدار",
-            title="سهم هر بخش از کل پرداخت‌ها",
-            hole=0.4, color="نوع", color_discrete_sequence=colors
+            title=False, hole=0.4, color="نوع", color_discrete_sequence=colors_palette
         )
         fig_pie.update_traces(textinfo="label+percent", textfont_size=14)
         st.plotly_chart(fig_pie, use_container_width=True)
 
-        st.subheader("📈 مقایسه سود و تعهدات")
-        bar_data = {
-            "شاخص": ["سود ناخالص", "سود خالص", "کل پرداختی‌ها"],
-            "مقدار": [gross_profit, net_profit, total_obligations],
-        }
-        # برچسب‌های فارسیِ قالب‌بندی‌شده به‌عنوان text
-        bar_text = [
-            to_persian_number(gross_profit) + " تومان",
-            to_persian_number(net_profit) + " تومان",
-            to_persian_number(total_obligations) + " تومان",
-        ]
-        fig_bar = px.bar(
-            bar_data, x="شاخص", y="مقدار",
-            title="مقایسه سود ناخالص، سود خالص و کل پرداختی‌ها (تومان)",
-            text=bar_text, color="شاخص",
-            color_discrete_sequence=["#81C784", "#4DB6AC", "#E57373"]
-        )
-        fig_bar.update_traces(textposition="outside")
-        fig_bar.update_layout(yaxis_title="تومان", xaxis_title="", uniformtext_minsize=12, uniformtext_mode='show')
-        st.plotly_chart(fig_bar, use_container_width=True)
-
-    # ---- تولید PDF  ----
+    # ---- PDF generation ----
     def shape_rtl(text):
         if not text:
             return text
         if HAS_RTL_LIBS:
             return get_display(arabic_reshaper.reshape(text))
         return text
+
+    def get_persian_datetime_str():
+        now = jdatetime.datetime.now()
+        # HH:MM zero-padded
+        hh = f"{now.hour:02d}"
+        mm = f"{now.minute:02d}"
+        return (
+            f"{to_persian_number(now.year)}/"
+            f"{to_persian_number(now.month)}/"
+            f"{to_persian_number(now.day)} - "
+            f"{to_persian_number(int(hh))}:{to_persian_number(int(mm))}"
+        )
 
     def build_pdf_bytes():
         from reportlab.lib.pagesizes import A4
@@ -209,9 +209,9 @@ if do_calc:
         from reportlab.lib.units import cm
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 
-        # ثبت فونت فارسی در صورت وجود
+        # Register Persian font
         font_name = "Vazirmatn"
         font_path = "Vazirmatn-Regular.ttf"
         try:
@@ -234,49 +234,49 @@ if do_calc:
 
         elements = []
 
-        # "لوگو" (یادداشت فانتزی)
+        # Logo
         elements.append(Paragraph(f"<b>{shape_rtl('کارگاه کیمیاگری ۹')}</b>", subtitle_style))
         elements.append(Spacer(1, 6))
 
-        # تیتر
+        # Title
         elements.append(Paragraph(shape_rtl("گزارش مالی"), title_style))
         elements.append(Spacer(1, 10))
 
-        # نمایش نام کسب‌وکار در PDF
+        # Business name (kept) + Persian date/time just below it
         if business_name.strip():
             elements.append(Paragraph(shape_rtl(f"نام کسب‌وکار: {business_name}"), normal_style))
-            elements.append(Spacer(1, 8))
+        elements.append(Paragraph(shape_rtl(f"تاریخ و زمان تولید گزارش: {get_persian_datetime_str()}"), normal_style))
+        elements.append(Spacer(1, 10))
 
-        # خلاصه ورودی‌ها
+        # Summary line
         summary = (
             f"تعداد مشتریان: {to_persian_number(num_customers)} | "
             f"کل درآمد: {to_persian_number(total_income)} تومان | "
             f"کل هزینه‌ها: {to_persian_number(total_costs)} تومان"
         )
         elements.append(Paragraph(shape_rtl(summary), normal_style))
-        elements.append(Spacer(1, 8))
+        elements.append(Spacer(1, 10))
 
-        # جدول نتایج
+        # Results table (kept)
         rows = [
-            [shape_rtl("عنوان"), shape_rtl("مبلغ/درصد")],
-            [shape_rtl("عوارض فعالیت اقتصادی  (۵٪)"), f"{to_persian_number(income_tax)}"],
-            [shape_rtl("کارمزد تراکنش (۵۰۰۰ تومان × مشتری)"), f"{to_persian_number(fee)}"],
-            [shape_rtl("مالیات بر سود (۲۵٪)"), f"{to_persian_number(corporate_tax)}"],
-            [shape_rtl("مالیات بر ارزش افزوده (۱۰٪)"), f"{to_persian_number(vat)}"],
-            [shape_rtl("سود ناخالص"), f"{to_persian_number(gross_profit)}"],
-            [shape_rtl("حاشیه سود ناخالص (%)"), f"{to_persian_number(round(gross_margin,1), decimals=1)}٪"],
-            [shape_rtl("سود خالص"), f"{to_persian_number(net_profit)}"],
-            [shape_rtl("حاشیه سود خالص (%)"), f"{to_persian_number(round(net_margin,1), decimals=1)}٪"],
-            [shape_rtl("کل پرداختی‌ها"), f"{to_persian_number(total_obligations)}"],
-            [shape_rtl("سهم پرداختی‌ها از درآمد (%)"), f"{to_persian_number(round(tax_to_income,1), decimals=1)}٪"],
-            [shape_rtl("نسبت هزینه به درآمد (%)"), f"{to_persian_number(round(cost_to_income,1), decimals=1)}٪"],
-            [shape_rtl("سود به ازای هر مشتری"), f"{to_persian_number(profit_per_customer)}"],
+            [shape_rtl("مبلغ/درصد"), shape_rtl("عنوان")],
+            [f"{to_persian_number(total_income)}", shape_rtl("مجموع درآمد فروش کالا یا خدمات (تومان)")],
+            [f"{to_persian_number(vat)}", shape_rtl("مالیات بر ارزش افزوده دریافتی از مشتری (تومان)")],
+            [f"{to_persian_number(total_income+vat)}", shape_rtl("**کل دریافت با ارزش افزوده (تومان)**")],
+            [f"{to_persian_number(income_tax)}", shape_rtl("عوارض فعالیت اقتصادی (۵٪) (تومان)")],
+            [f"{to_persian_number(fee)}", shape_rtl("کارمزد تراکنش (۵۰۰۰ تومان × تعداد مشتریان) (تومان)")],
+            [f"{to_persian_number(corporate_tax)}", shape_rtl("مالیات بر سود (۲۵٪) (تومان)")],
+            [f"{to_persian_number(vat)}", shape_rtl("مالیات بر ارزش افزوده (۱۰٪ از درآمد) (تومان)")],
+            [f"{to_persian_number(total_remaining)}", shape_rtl("**مانده برای کسب‌و‌کار (تومان)**")],
+            [f"{to_persian_number(total_costs)}", shape_rtl("**مجموع هزینه تولید کالا یا خدمات (تومان)**")],
+            [f"{to_persian_number(net_profit)}", shape_rtl("**سود خالص (تومان)**")],
+            [f"{to_persian_number(net_margin)}", shape_rtl("**حاشیه سود (%)**")],
+            [f"{to_persian_number(cost_to_income)}", shape_rtl("نسبت هزینه به درآمد (%)")],
+            [f"{to_persian_number(tax_to_income)}", shape_rtl("نسبت پرداخت به صندوق شهر به درآمد (%)")],
+            [f"{to_persian_number(profit_per_customer)}", shape_rtl("سود به ازای هر مشتری (تومان)")],
         ]
 
-        st.subheader(f"📑 جدول خلاصه – {business_name}" if business_name else "📑 جدول خلاصه")
-
-        from reportlab.platypus import Table
-        table = Table(rows, colWidths=[8*cm, 6*cm])
+        table = Table(rows, colWidths=[6*cm, 8*cm])
         table.setStyle(TableStyle([
             ('FONT', (0,0), (-1,-1), font_name, 10),
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f7f7f7")),
@@ -287,16 +287,36 @@ if do_calc:
             ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.HexColor("#fcfcfc")]),
         ]))
         elements.append(table)
-        elements.append(Spacer(1, 10))
+        elements.append(Spacer(1, 12))
 
-        # یادداشت پرداخت
+        # Pie chart below the table (same palette)
+        try:
+            import plotly.express as px
+            img_bytes = io.BytesIO()
+            # Rebuild the same fig to avoid scoping issues (or use captured 'fig_pie')
+            fig = px.pie(
+                names=pie_data["نوع"],
+                values=pie_data["مقدار"],
+                hole=0.4,
+                color=pie_data["نوع"],
+                color_discrete_sequence=colors_palette
+            )
+            fig.update_traces(textinfo="label+percent", textfont_size=14)
+            fig.write_image(img_bytes, format="png", scale=2)  # needs kaleido
+            img_bytes.seek(0)
+            elements.append(Image(img_bytes, width=14*cm, height=10*cm))
+            elements.append(Spacer(1, 10))
+        except Exception:
+            elements.append(Paragraph(shape_rtl("⚠️ افزودن نمودار به PDF امکان‌پذیر نشد (نیاز به بسته kaleido)."), normal_style))
+
+        # Payment note (kept)
         pay_text = (
-            "مبلغ الزامات مالی را به حساب مسئول بودجه فرنام شهبا به شماره کارت ۶۲۷۴۸۸۱۱۱۳۱۹۱۶۶۱ "
             "واریز بفرمایید و رسید واریز به همراه فایل محاسبه شده را به آی‌دی تلگرام @farnamshahba ارسال کنید."
+            f"مبلغ {to_persian_number(total_obligations)} را به حساب مسئول بودجه فرنام شهبا به شماره کارت ۶۲۷۴۸۸۱۱۱۳۱۹۱۶۶۱ "
         )
         elements.append(Paragraph(shape_rtl(pay_text), normal_style))
 
-        # یادداشت پایانی
+        # Final note (kept)
         elements.append(Spacer(1, 8))
         note = "این گزارش توسط مسئول بودجه، جهت استفاده کلیه مسئولین شهر کیمیاگری ۹ تهیه شده است."
         elements.append(Paragraph(shape_rtl(note), normal_style))
@@ -314,6 +334,7 @@ if do_calc:
         mime="application/pdf"
     )
 
+# ---- Footer (kept EXACTLY) ----
 with footer_box:
     st.markdown(
         "<p class='footer-note'>🦸‍♀️🦸‍♂️ تو قهرمان ارزشمند زندگی خودت هستی.</p>",
